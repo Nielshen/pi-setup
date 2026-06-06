@@ -2,7 +2,7 @@
   "lastChangelogVersion": "0.78.0",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-5.5",
-  "theme": "one-dark-pro",
+  "theme": "nebula-pulse",
   "compaction": {
     "enabled": true
   },

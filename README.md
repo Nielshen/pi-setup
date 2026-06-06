@@ -75,18 +75,33 @@ Never commit secrets or runtime state:
 - `~/.pi/agent/local-models.json` unless intentionally sanitized
 - cache files such as `mcp-cache.json`
 
-## Updating this repo from the current machine
+## Syncing future tweaks
+
+After changing Pi locally, run this from the repo:
 
 ```bash
-cp ~/.pi/agent/extensions/*.ts extensions/
-cp ~/.pi/agent/themes/*.json themes/
-cp ~/.pi/agent/settings.json config/settings.example.json
-cp ~/.pi/agent/mcp.json config/mcp.example.json
-
-git add .
-git commit -m "Update Pi setup"
-git push
+./sync.sh
 ```
+
+Or, after running `./install.sh`, use the global helper:
+
+```bash
+pi-setup-sync
+```
+
+Custom commit message:
+
+```bash
+pi-setup-sync "Update themes and footer"
+```
+
+Commit without pushing:
+
+```bash
+pi-setup-sync --no-push "Checkpoint local Pi setup"
+```
+
+The sync command copies current `~/.pi/agent/extensions`, `~/.pi/agent/themes`, `settings.json`, and `mcp.json` into this repo, validates JSON/theme tokens, commits, and pushes.
 
 ## Applying updates on another machine
 
