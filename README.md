@@ -26,13 +26,13 @@ Personal reproducible setup for [Pi coding agent](https://pi.dev): extensions, c
 After pushing this repo to GitHub, install it with one of these:
 
 ```bash
-pi install git:https://github.com/YOUR_USERNAME/pi-setup
+pi install git:https://github.com/abhinand5/pi-setup
 ```
 
 or private SSH:
 
 ```bash
-pi install git:git@github.com:YOUR_USERNAME/pi-setup
+pi install git:git@github.com:abhinand5/pi-setup
 ```
 
 Then restart Pi or run:
@@ -61,7 +61,7 @@ Warning: `--copy-config` overwrites `~/.pi/agent/settings.json` and `~/.pi/agent
 mkdir -p ~/.pi/agent
 cp config/settings.example.json ~/.pi/agent/settings.json
 cp config/mcp.example.json ~/.pi/agent/mcp.json
-pi install git:https://github.com/YOUR_USERNAME/pi-setup
+pi install git:https://github.com/abhinand5/pi-setup
 ```
 
 ## Do not commit
@@ -91,7 +91,7 @@ git push
 ## Applying updates on another machine
 
 ```bash
-pi update git:https://github.com/YOUR_USERNAME/pi-setup
+pi update git:https://github.com/abhinand5/pi-setup
 ```
 
 or just:
