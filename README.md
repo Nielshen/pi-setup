@@ -5,10 +5,10 @@ Personal reproducible setup for [Pi coding agent](https://pi.dev): extensions, c
 ## What's included
 
 - `bin/pi` — compact Pi launcher wrapper
-  - logo before Pi's native header
   - one-line update notices instead of large startup boxes
-  - preserves Pi's native loaded skills/extensions/themes listing
+  - preserves Pi's native themed header and loaded skills/extensions/themes listing
 - `extensions/` — custom Pi extensions
+  - themed startup welcome card
   - custom footer
   - context command
   - local model manager

@@ -2,22 +2,10 @@
 set -euo pipefail
 
 # Personal Pi launcher.
-# - Prints the logo before Pi's native startup header/resource listing.
-# - Replaces Pi's large startup update boxes with one compact preflight line.
+# Replaces Pi's large startup update boxes with one compact preflight line while
+# leaving all themed TUI rendering to Pi/extensions.
 
 REAL_PI="${PI_REAL_BIN:-/usr/bin/pi}"
-
-print_logo() {
-  cat <<'EOF'
-
- ██████   ██
- ██   ██  ██
- ██████   ██
- ██       ██
- ██       ██
- ██       ██
-EOF
-}
 
 version_gt() {
   python3 - "$1" "$2" <<'PY' 2>/dev/null
@@ -127,7 +115,6 @@ case "${1:-}" in
     ;;
   *)
     if [[ -t 1 ]]; then
-      print_logo
       compact_update_notice
     fi
     # Suppress Pi's large built-in update boxes; the compact line above replaces them.
