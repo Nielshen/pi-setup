@@ -17,7 +17,6 @@ Personal reproducible setup for [Pi coding agent](https://pi.dev): extensions, c
   - `/filechanges` review/accept/decline workflow for Pi-made `edit`/`write` changes
   - custom footer with token usage and git branch
   - local model manager
-  - thinking timer — animated `Thinking.` → `Thinking..` → `Thinking...` while the model reasons, then `💭 Thought for 3s` when it finishes
 - `themes/` — polished custom themes
   - `nebula-pulse` *(current default)*
   - `opencode`
