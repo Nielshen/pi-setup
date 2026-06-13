@@ -11,8 +11,9 @@ Personal reproducible setup for [Pi coding agent](https://pi.dev): extensions, c
   - themed startup welcome card
   - `/context` usage breakdown for startup tokens, messages, and tool calls (scrollback output; not added to model context)
   - `/filechanges` review/accept/decline workflow for Pi-made `edit`/`write` changes
-  - custom footer
+  - custom footer with token usage and git branch
   - local model manager
+  - thinking timer — animated `Thinking.` → `Thinking..` → `Thinking...` while the model reasons, then `💭 Thought for 3s` when it finishes
 - `themes/` — polished custom themes
   - `nebula-pulse` *(current default)*
   - `opencode`
@@ -24,7 +25,8 @@ Personal reproducible setup for [Pi coding agent](https://pi.dev): extensions, c
   - `gruvbox`
   - `rose-pine`
   - `synthwave-84`
-- `skills/` — selected local Pi/Agent skills backed up as portable copies
+- `skills/` — portable copies of installed Pi skills
+  - diagnose, find-docs, find-skills, grill-me, grill-with-docs, handoff, hf-cli, improve-codebase-architecture, mcp-code-search, teach, write-a-skill
 - `config/` — safe example config files
 
 ## Install from GitHub
