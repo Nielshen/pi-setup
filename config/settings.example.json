@@ -1,7 +1,7 @@
 {
   "lastChangelogVersion": "0.79.1",
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.5",
+  "defaultProvider": "local-in6bhf1g",
+  "defaultModel": "Qwen3.6-27B",
   "theme": "nebula-pulse",
   "compaction": {
     "enabled": true
@@ -11,10 +11,25 @@
     "npm:@juicesharp/rpiv-todo",
     "npm:pi-markdown-preview",
     "npm:pi-mcp-adapter",
-    "npm:context-mode",
+    {
+      "source": "npm:context-mode",
+      "extensions": [
+        "-build/adapters/pi/extension.js"
+      ],
+      "skills": [
+        "-skills/context-mode/SKILL.md",
+        "-skills/ctx-doctor/SKILL.md",
+        "-skills/ctx-index/SKILL.md",
+        "-skills/ctx-insight/SKILL.md",
+        "-skills/ctx-purge/SKILL.md",
+        "-skills/ctx-search/SKILL.md",
+        "-skills/ctx-stats/SKILL.md",
+        "-skills/ctx-upgrade/SKILL.md"
+      ]
+    },
     "npm:@narumitw/pi-goal",
     "npm:@juicesharp/rpiv-advisor",
-    "npm:@ryan_nookpi/pi-extension-claude-spinner"
+    "npm:@dustydonkey/pi-spinner"
   ],
   "defaultThinkingLevel": "high",
   "enabledModels": [
@@ -26,5 +41,8 @@
     "anthropic/claude-haiku-4-5",
     "local-in6bhf1g/Qwen3.6-27B"
   ],
-  "hideThinkingBlock": true
+  "hideThinkingBlock": true,
+  "skills": [
+    "+skills/find-skills/SKILL.md"
+  ]
 }
