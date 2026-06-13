@@ -10,6 +10,7 @@ Personal reproducible setup for [Pi coding agent](https://pi.dev): extensions, c
 - `extensions/` — custom Pi extensions
   - themed startup welcome card
   - `/context` usage breakdown for startup tokens, messages, and tool calls (overlay-only; not added to model context)
+  - `/filechanges` review/accept/decline workflow for Pi-made `edit`/`write` changes
   - custom footer
   - local model manager
 - `themes/` — polished custom themes
@@ -108,6 +109,16 @@ Welcome update notices only appear for major/minor updates, not patches. Toggle 
 /welcome updates on
 /welcome updates off
 ```
+
+Review files changed by Pi before keeping or reverting them:
+
+```txt
+/filechanges          # inspect tracked edit/write changes and diffs
+/filechanges-accept   # keep files and clear the log
+/filechanges-decline  # revert tracked changes
+```
+
+In non-interactive print/json mode, accept/decline require `force`.
 
 Custom commit message:
 
