@@ -11,7 +11,9 @@
   ],
   "license": "UNLICENSED",
   "pi": {
-    "extensions": [],
+    "extensions": [
+      "./extensions/sandbox.ts"
+    ],
     "skills": [],
     "themes": []
   },

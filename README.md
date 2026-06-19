@@ -41,7 +41,7 @@ Do **not** install this checkout as an active Pi package in normal use. Loading 
 | Launcher | Compact `pi` wrapper with one-line major/minor update notices |
 | Install safety | `--dry-run` preview, `--backup`, and `--revert <backup-dir>` |
 | Sync | `pi-setup-sync` copies live `~/.pi/agent` resources back to this repo, commits, and pushes |
-| Extensions | welcome header, context breakdown, file-change review, safety guard, custom footer, local model manager |
+| Extensions | welcome header, context breakdown, file-change review, safety guard, **sandbox (folder allowlist)**, custom footer, local model manager |
 | Config examples | Safe `settings.example.json` and `mcp.example.json` without personal provider/model choices |
 | Themes | `nebula-pulse`, `opencode`, `tokyo-night`, `one-dark-pro`, and more |
 | Skills | Portable backups of installed Pi/agent skills |
@@ -57,6 +57,7 @@ Do **not** install this checkout as an active Pi package in normal use. Loading 
   - `/context` usage breakdown for startup tokens, messages, and tool calls (scrollback output; not added to model context)
   - `/filechanges` review/accept/decline workflow for Pi-made `edit`/`write` changes
   - `/safety` and `/permissions` guard rails for risky shell/file actions
+  - `/sandbox enable\|disable\|status\|list\|add <path>\|reset` folder-allowlist boundary for read/write/edit/bash/grep/find/ls
   - `/accept on|off|status` toggle to require per-edit confirmation with a diff preview (Confirm-Edits)
   - custom footer with input/output/reasoning tokens, cost, context %, tokens/sec, model, thinking level, and git branch
   - `/local-models` manager for OpenAI-compatible local endpoints such as Ollama, LM Studio, RunPod, or llama.cpp servers
@@ -276,6 +277,7 @@ This repo currently includes these Pi customizations.
 /filechanges-decline [force]  # revert tracked Pi-made changes
 /safety enable|disable|status # manage Safety Guard
 /permissions ...              # alias for /safety
+/sandbox enable|disable|status|list|add <path>|reset  # manage folder allowlist
 /accept on|off|status         # require diff-preview confirmation before each edit/write
 /local-models                 # add, refresh, remove, and select local LLM endpoints
 ```
@@ -308,6 +310,16 @@ This repo currently includes these Pi customizations.
 - Stores endpoint metadata in `~/.pi/agent/local-models.json`.
 - Registers available models as `local-<endpoint-id>` providers during extension load so `/model` can see them.
 - Supports endpoint refresh, model selection, and endpoint removal.
+
+### Sandbox (folder allowlist)
+
+- Restricts pi's filesystem access to a configurable allowlist of folders (`roots`).
+- Blocks `read`/`write`/`edit`/`grep`/`find`/`ls`/`bash` tool calls whose target path or working directory is outside a root, before execution.
+- Bash commands that reference absolute paths or `cd` outside the roots are also blocked.
+- Roots are read from `~/.pi/agent/sandbox.json` (`{ "enabled": true, "roots": ["..."] }`), or the `SANDBOX_ROOTS` env var (colon-separated). If neither is present, the sandbox stays enabled but allows **nothing** until you define roots. Resolve `~` and relative paths automatically.
+- Footer status shows `sandbox: <n> roots` (or `sandbox: off` when disabled).
+- Complementary to the Safety Guard: the Safety Guard confirms *risky* actions; the Sandbox enforces a hard *folder boundary*.
+- Best-effort guard, not a hardened jail — for real isolation run pi in a container with only the allowed folders mounted.
 
 ### Footer and themes
 
