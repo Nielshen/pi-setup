@@ -57,6 +57,7 @@ Do **not** install this checkout as an active Pi package in normal use. Loading 
   - `/context` usage breakdown for startup tokens, messages, and tool calls (scrollback output; not added to model context)
   - `/filechanges` review/accept/decline workflow for Pi-made `edit`/`write` changes
   - `/safety` and `/permissions` guard rails for risky shell/file actions
+  - `/accept on|off|status` toggle to require per-edit confirmation with a diff preview (Confirm-Edits)
   - custom footer with input/output/reasoning tokens, cost, context %, tokens/sec, model, thinking level, and git branch
   - `/local-models` manager for OpenAI-compatible local endpoints such as Ollama, LM Studio, RunPod, or llama.cpp servers
 - `themes/` — versioned copies of custom themes
@@ -275,6 +276,7 @@ This repo currently includes these Pi customizations.
 /filechanges-decline [force]  # revert tracked Pi-made changes
 /safety enable|disable|status # manage Safety Guard
 /permissions ...              # alias for /safety
+/accept on|off|status         # require diff-preview confirmation before each edit/write
 /local-models                 # add, refresh, remove, and select local LLM endpoints
 ```
 
@@ -290,6 +292,15 @@ This repo currently includes these Pi customizations.
 - Blocks or asks for confirmation before destructive/risky actions not explicitly requested by the user.
 - Detects force pushes, amend/rebase/reset hard, branch/tag deletion, recursive deletion, protected path writes, package removals, service changes, broad `sudo`, and context purge.
 - In git repos, normal recoverable edits are allowed without extra prompts.
+
+### Confirm-Edits
+
+- `/accept on` (or `/accept confirm`) turns OFF auto-accept: every Pi `edit` and `write` tool call is intercepted before execution and shown as a diff overlay in the Pi TUI. Press **Enter** to apply or **Esc / Ctrl-C** to skip.
+- `/accept off` (or `/accept auto`) restores Pi's default behavior: edits and writes apply without asking.
+- `/accept status` reports the current mode; bare `/accept` toggles.
+- Mode is persisted in `~/.pi/agent/accept-edits.json` and a footer status (`accept: auto` / `accept: confirm`) reflects it.
+- When confirmation is ON, a short steering note is appended to the system prompt so the model knows changes are gated and should not immediately retry a rejected change.
+- In headless (non-interactive) sessions with confirmation ON, edits/writes are blocked because there is no UI to confirm them.
 
 ### Local models
 
