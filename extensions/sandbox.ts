@@ -1,9 +1,15 @@
 /**
- * Sandbox Extension — restricts pi's filesystem access to an allowlist of folders.
+ * Sandbox Extension — restricts pi's filesystem access to an allowlist of
+ * folders (roots) PLUS an optional denylist (blacklist).
  *
- * Allowed folders ("roots"). A path is allowed when it is inside (or equal to)
- * one of the roots. Access via read/write/edit/bash/grep/find/ls to anything
+ * Allowlist ("roots"): a path is allowed when it is inside (or equal to) one
+ * of the roots. Access via read/write/edit/bash/grep/find/ls to anything
  * outside the roots is blocked before execution.
+ *
+ * Denylist ("deny"): paths inside this list are blocked EVEN IF they are
+ * inside an allowed root. Deny beats Allow. Use this to lock specific
+ * subfolders (e.g. a benchmark/ or secrets/ dir) that sit inside an allowed
+ * root but must never be read.
  *
  * CONFIG SOURCE (global, deterministisch):
  *   Diese Extension wird von Pi aus ~/.pi/agent/extensions/sandbox.ts geladen
@@ -25,7 +31,8 @@
  * gibt kein Race zwischen Ladereihenfolge und In-Memory-Cache.
  *
  * Bash policy: a bash command is allowed unless it references a path that
- * resolves OUTSIDE the allowed roots. The cwd itself is NOT checked anymore —
+ * is on the denylist OR resolves OUTSIDE the allowed roots. The cwd itself
+ * is NOT checked anymore —
  * only the explicit path-like tokens inside the command string are. This makes
  * bash behave like read/grep/find: `ls`, `git status`, `npm test` run freely
  * regardless of cwd, while `cat /etc/shadow` or `cd /outside` are blocked.
@@ -45,6 +52,7 @@ import { homedir } from "node:os";
 type SandboxConfig = {
 	enabled: boolean;
 	roots: string[];
+	deny?: string[];
 };
 
 // Config liegt global neben der geladenen Extension (~/.pi/agent/). Hartkodiert,
@@ -72,10 +80,10 @@ function loadConfig(): SandboxConfig {
 	}
 	try {
 		const parsed = JSON.parse(readFileSync(CONFIG_PATH, "utf8")) as Partial<SandboxConfig>;
-		return { enabled: true, roots: [], ...parsed };
+		return { enabled: true, roots: [], deny: [], ...parsed };
 	} catch {
 		// No sandbox.json and no env var → sandbox stays enabled but allows nothing.
-		return { enabled: true, roots: [] };
+		return { enabled: true, roots: [], deny: [] };
 	}
 }
 
@@ -89,6 +97,20 @@ function isAllowedRoot(target: string, roots: string[]): boolean {
 	const t = normalize(isAbsolute(target) ? target : pathResolve(process.cwd(), target));
 	return roots.some((root) => {
 		const rel = relative(root, t);
+		return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+	});
+}
+
+/**
+ * True if `target` (absolute) is inside (or equal to) one of the deny entries.
+ * Deny entries match recursively: denying /a/b also denies /a/b/c, /a/b/c/d, …
+ */
+function isDenied(target: string, deny: string[]): boolean {
+	if (!deny || deny.length === 0) return false;
+	const t = normalize(isAbsolute(target) ? target : pathResolve(process.cwd(), target));
+	return deny.some((entry) => {
+		const e = normalize(isAbsolute(entry) ? entry : pathResolve(process.cwd(), entry));
+		const rel = relative(e, t);
 		return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 	});
 }
@@ -138,6 +160,7 @@ export default function sandbox(pi: ExtensionAPI) {
 		}
 	};
 	const resolved = () => resolveRoots(current().roots);
+	const denied = () => resolveRoots(current().deny ?? []);
 
 	function setStatus(ctx: { hasUI: boolean; ui: { setStatus: (k: string, v: string) => void } }) {
 		if (ctx.hasUI) {
@@ -147,7 +170,7 @@ export default function sandbox(pi: ExtensionAPI) {
 	}
 
 	pi.registerCommand("sandbox", {
-		description: "Manage Sandbox: /sandbox enable|disable|status|list|add <path>|reset",
+		description: "Manage Sandbox: /sandbox enable|disable|status|list|add|deny|undeny|reset|reset-all",
 		handler: async (args, ctx) => {
 			const [sub, ...rest] = args.trim().split(/\s+/);
 			const arg = rest.join(" ").trim();
@@ -166,9 +189,15 @@ export default function sandbox(pi: ExtensionAPI) {
 					ctx.ui.notify("Sandbox disabled", "warning");
 					return;
 				}
-				case "list":
-					ctx.ui.notify(`Roots:\n${resolved().map((r) => `  • ${r}`).join("\n")}`, "info");
+				case "list": {
+					const d = denied();
+					ctx.ui.notify(
+						`Roots:\n${resolved().map((r) => `  • ${r}`).join("\n")}` +
+							(d.length ? `\nDeny:\n${d.map((r) => `  • ${r}`).join("\n")}` : "\nDeny: (none)"),
+						"info",
+					);
 					return;
+				}
 				case "add": {
 					if (!arg) {
 						ctx.ui.notify("Usage: /sandbox add <absolute-path>", "warning");
@@ -181,25 +210,60 @@ export default function sandbox(pi: ExtensionAPI) {
 					ctx.ui.notify(`Added ${arg}. Roots: ${resolveRoots(next.roots).length}`, "info");
 					return;
 				}
+				case "deny": {
+					if (!arg) {
+						ctx.ui.notify("Usage: /sandbox deny <absolute-path>", "warning");
+						return;
+					}
+					const c = current();
+					const existing = c.deny ?? [];
+					const next = { ...c, deny: [...existing, arg] };
+					saveConfig(next);
+					ctx.ui.notify(`Denied ${arg}. Deny entries: ${resolveRoots(next.deny).length}`, "info");
+					return;
+				}
+				case "undeny": {
+					if (!arg) {
+						ctx.ui.notify("Usage: /sandbox undeny <absolute-path>", "warning");
+						return;
+					}
+					const c = current();
+					const existing = c.deny ?? [];
+					const next = existing.filter((p) => expandTilde(p) !== expandTilde(arg));
+					saveConfig({ ...c, deny: next });
+					ctx.ui.notify(`Removed ${arg}. Deny entries: ${resolveRoots(next).length}`, "info");
+					return;
+				}
 				case "reset": {
-					const next: SandboxConfig = { enabled: true, roots: [] };
+					// reset leert nur die roots; die deny-Liste bleibt unangetastet,
+					// damit dauerhafte Sperren auch nach einem Root-Reset erhalten
+					// bleiben. (Vollständiger Reset inkl. deny: /sandbox reset-all.)
+					const next: SandboxConfig = { enabled: true, roots: [], deny: current().deny ?? [] };
 					saveConfig(next);
 					setStatus(ctx);
-					ctx.ui.notify("Sandbox roots cleared (nothing allowed)", "info");
+					ctx.ui.notify("Sandbox roots cleared (deny kept)", "info");
+					return;
+				}
+				case "reset-all": {
+					const next: SandboxConfig = { enabled: true, roots: [], deny: [] };
+					saveConfig(next);
+					setStatus(ctx);
+					ctx.ui.notify("Sandbox fully reset (roots + deny cleared)", "info");
 					return;
 				}
 				case "status":
 				case "": {
 					const c = current();
+					const dN = resolveRoots(c.deny ?? []).length;
 					ctx.ui.notify(
-						`Sandbox is ${c.enabled ? "enabled" : "disabled"} (${resolveRoots(c.roots).length} roots)`,
+						`Sandbox is ${c.enabled ? "enabled" : "disabled"} (${resolveRoots(c.roots).length} roots, ${dN} deny)`,
 						c.enabled ? "info" : "warning",
 					);
 					return;
 				}
 				default:
 					ctx.ui.notify(
-						"Usage: /sandbox enable | disable | status | list | add <path> | reset",
+						"Usage: /sandbox enable | disable | status | list | add <path> | deny <path> | undeny <path> | reset | reset-all",
 						"warning",
 					);
 			}
@@ -224,9 +288,17 @@ export default function sandbox(pi: ExtensionAPI) {
 
 		if (PATH_TOOLS.has(toolName)) {
 			const p = (input as { path?: string }).path;
-			if (typeof p === "string" && !isAllowedRoot(p, roots)) {
-				if (ctx.hasUI) ctx.ui.notify(`Sandbox: blocked ${toolName} of ${p}`, "warning");
-				return { block: true, reason: `Sandbox: path outside allowed roots: ${p}` };
+			if (typeof p === "string") {
+				const deny = resolveRoots(config.deny ?? []);
+				const absP = resolveAgainst(p, process.cwd());
+				if (isDenied(absP, deny)) {
+					if (ctx.hasUI) ctx.ui.notify(`Sandbox: blocked ${toolName} of ${p} (denied)`, "warning");
+					return { block: true, reason: `Sandbox: path on denylist: ${p}` };
+				}
+				if (!isAllowedRoot(p, roots)) {
+					if (ctx.hasUI) ctx.ui.notify(`Sandbox: blocked ${toolName} of ${p}`, "warning");
+					return { block: true, reason: `Sandbox: path outside allowed roots: ${p}` };
+				}
 			}
 			return undefined;
 		}
@@ -235,7 +307,13 @@ export default function sandbox(pi: ExtensionAPI) {
 			const p = (input as { path?: string }).path;
 			if (typeof p === "string" && p.trim().length > 0) {
 				const cwd = (input as { cwd?: string }).cwd ?? process.cwd();
-				if (!isAllowedRoot(resolveAgainst(p, cwd), roots)) {
+				const deny = resolveRoots(config.deny ?? []);
+				const abs = resolveAgainst(p, cwd);
+				if (isDenied(abs, deny)) {
+					if (ctx.hasUI) ctx.ui.notify(`Sandbox: blocked ${toolName} in ${p} (denied)`, "warning");
+					return { block: true, reason: `Sandbox: search path on denylist: ${p}` };
+				}
+				if (!isAllowedRoot(abs, roots)) {
 					if (ctx.hasUI) ctx.ui.notify(`Sandbox: blocked ${toolName} in ${p}`, "warning");
 					return { block: true, reason: `Sandbox: search path outside allowed roots: ${p}` };
 				}
@@ -254,9 +332,18 @@ export default function sandbox(pi: ExtensionAPI) {
 		if (toolName === "bash") {
 			const { command, cwd: cwdArg } = input as { command?: string; cwd?: string };
 			const cwd = cwdArg && cwdArg.trim().length > 0 ? cwdArg : process.cwd();
+			const deny = resolveRoots(config.deny ?? []);
 			if (command) {
 				for (const tok of extractPathsFromCommand(command)) {
-					if (!isAllowedRoot(resolveAgainst(tok, cwd), roots)) {
+					const abs = resolveAgainst(tok, cwd);
+					if (isDenied(abs, deny)) {
+						if (ctx.hasUI) ctx.ui.notify(`Sandbox: blocked bash referencing ${tok} (denied)`, "warning");
+						return {
+							block: true,
+							reason: `Sandbox: command references denied path: ${tok}`,
+						};
+					}
+					if (!isAllowedRoot(abs, roots)) {
 						if (ctx.hasUI) ctx.ui.notify(`Sandbox: blocked bash referencing ${tok}`, "warning");
 						return {
 							block: true,
@@ -273,4 +360,4 @@ export default function sandbox(pi: ExtensionAPI) {
 }
 
 // Exposed for tests / future tooling.
-export { loadConfig, isAllowedRoot, resolveRoots };
+export { loadConfig, isAllowedRoot, isDenied, resolveRoots };
