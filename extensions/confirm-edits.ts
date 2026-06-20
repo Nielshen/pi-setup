@@ -10,16 +10,16 @@
  *   /accept           — toggle (no arg)
  *
  * When confirmation is ON, every `edit` and `write` tool_call is intercepted
- * BEFORE execution: a diff overlay is shown in the pi TUI. The user presses
- * Enter to apply or Esc / "Skip" to block.
+ * BEFORE execution: the projected diff is published into the chat stream
+ * (visible message, no overlay) and a compact y/n confirm is asked. Apply →
+ * the tool runs through (pi then shows its built-in chat diff anyway); Skip →
+ * the tool_call is blocked and the file stays unchanged.
  *
  * Config is persisted across sessions at ~/.pi/agent/accept-edits.json.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DynamicBorder, getMarkdownTheme } from "@earendil-works/pi-coding-agent";
-import { Container, Key, Markdown, Text, matchesKey } from "@earendil-works/pi-tui";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
@@ -269,38 +269,31 @@ export default function confirmEdits(pi: ExtensionAPI) {
 			return { block: true, reason: `Confirm-Edits is ON but session has no UI; blocked ${kind} on ${displayPath}.` };
 		}
 
-		const md = "```diff\n" + (patch.trimEnd() || "(no changes)") + "\n```";
+		// Inline-Confirm: Diff geht als sichtbare Nachricht in den Chat-Verlauf
+		// (kein Overlay-Fenster). Die Freigabe läuft über einen dezenten J/N-Prompt
+		// (ctx.ui.confirm), der die Tastatur nur kurz für die Entscheidung hält.
+		// Akzeptiert → Tool läuft normal durch (Pi zeigt danach ohnehin seinen
+		// built-in Chat-Diff). Abgelehnt → tool_call wird geblockt, Datei bleibt
+		// unverändert.
+		const body = `${header}\n\n\`\`\`diff\n${patch.trimEnd() || "(no changes)"}\n\`\`\``;
 
-		const decision = await ctx.ui.custom<"apply" | "skip">((tui, theme, _kb, done) => {
-			const container = new Container();
-			container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
-			container.addChild(new Text(theme.fg("accent", theme.bold(header)), 1, 0));
-			container.addChild(new Markdown(md, 1, 0, getMarkdownTheme()));
-			container.addChild(
-				new Text(
-					theme.fg("dim", "enter = apply   •   esc / ctrl-c = skip"),
-					1,
-					0
-				)
+		try {
+			(pi as unknown as {
+				sendMessage: (msg: unknown, opts?: unknown) => void;
+			}).sendMessage(
+				{ customType: "confirm-edits-preview", content: body, display: true },
+				{ triggerTurn: false },
 			);
-			container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+		} catch {
+			// sendMessage nicht verfügbar (ältere Pi-Version / anderer Modus) →
+			// Fallback: Nur der Confirm-Prompt ohne vorab gerenderten Diff im Chat.
+		}
 
-			return {
-				render: (w) => container.render(w),
-				invalidate: () => container.invalidate(),
-				handleInput: (data) => {
-					if (matchesKey(data, Key.return) || matchesKey(data, Key.enter)) {
-						done("apply");
-					} else if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
-						done("skip");
-					} else {
-						tui.requestRender();
-					}
-				},
-			};
-		}, { overlay: true });
+		const apply = ctx.hasUI
+			? await ctx.ui.confirm(`Apply ${kind} on ${displayPath}?`, "y = apply  /  n = skip")
+			: false;
 
-		if (decision === "apply") return undefined;
+		if (apply) return undefined;
 		return { block: true, reason: `User skipped ${kind} on ${displayPath}.` };
 	});
 }
