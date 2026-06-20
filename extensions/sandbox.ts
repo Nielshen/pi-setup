@@ -24,10 +24,14 @@
  * Änderungen (auch /sandbox add, /sandbox reset) sofort und zuverlässig, und es
  * gibt kein Race zwischen Ladereihenfolge und In-Memory-Cache.
  *
- * Bash policy: the working directory of every bash command must be inside an
- * allowed root, and commands that reference absolute paths or `cd` outside the
- * roots are blocked. This is a best-effort guard, not a hardened jail — for
- * real isolation run pi in a container with only the allowed folders mounted.
+ * Bash policy: a bash command is allowed unless it references a path that
+ * resolves OUTSIDE the allowed roots. The cwd itself is NOT checked anymore —
+ * only the explicit path-like tokens inside the command string are. This makes
+ * bash behave like read/grep/find: `ls`, `git status`, `npm test` run freely
+ * regardless of cwd, while `cat /etc/shadow` or `cd /outside` are blocked.
+ * Note: this means relative access (e.g. `cat ../secret.txt` from a non-root
+ * cwd) is NOT caught — for real isolation run pi in a container with only the
+ * allowed folders mounted. This is a best-effort guard, not a hardened jail.
  *
  * Complementary to safety-guard.ts: the safety guard confirms *risky* actions;
  * this sandbox enforces a hard *folder boundary*.
@@ -239,13 +243,17 @@ export default function sandbox(pi: ExtensionAPI) {
 			return undefined;
 		}
 
+		// Bash: nur die im Command referenzierten Pfade werden geprüft (wie bei
+		// read/grep/find). Der cwd selbst wird NICHT mehr gecheckt — damit verhält
+		// sich bash wie die anderen Tools: `ls`, `git status`, `npm test` laufen
+		// frei, auch wenn der cwd selbst kein Root ist. Nur wenn ein Token im
+		// Command (absoluter Pfad, ~, ./, ../, oder Ziel von cd/pushd) außerhalb
+		// der Roots liegt, wird geblockt.
+		// (Relativer Zugriff vom cwd aus wird bewusst NICHT validiert — siehe
+		// Header-Kommentar "best-effort guard, not a hardened jail".)
 		if (toolName === "bash") {
 			const { command, cwd: cwdArg } = input as { command?: string; cwd?: string };
 			const cwd = cwdArg && cwdArg.trim().length > 0 ? cwdArg : process.cwd();
-			if (!isAllowedRoot(cwd, roots)) {
-				if (ctx.hasUI) ctx.ui.notify(`Sandbox: blocked bash in ${cwd}`, "warning");
-				return { block: true, reason: `Sandbox: cwd outside allowed roots: ${cwd}` };
-			}
 			if (command) {
 				for (const tok of extractPathsFromCommand(command)) {
 					if (!isAllowedRoot(resolveAgainst(tok, cwd), roots)) {
